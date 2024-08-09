@@ -364,6 +364,7 @@ class Block(
         executor_config: Dict = None,
         executor_type: ExecutorType = ExecutorType.LOCAL_PYTHON,
         extension_uuid: str = None,
+        groups: List[str] = None,
         status: BlockStatus = BlockStatus.NOT_EXECUTED,
         pipeline=None,
         replicated_block: str = None,
@@ -384,6 +385,7 @@ class Block(
         self.executor_config = executor_config
         self.executor_type = executor_type
         self.extension_uuid = extension_uuid
+        self.groups = groups
         self.status = status
         self.pipeline = pipeline
         self.language = language or BlockLanguage.PYTHON
@@ -1016,13 +1018,23 @@ class Block(
             if BlockType.DBT == block.type:
                 block.set_default_configurations()
 
-            pipeline.add_block(
-                block,
-                downstream_block_uuids=downstream_block_uuids,
-                upstream_block_uuids=upstream_block_uuids,
-                priority=priority,
-                widget=widget,
-            )
+            if BlockType.DBT == block.type and block.language == BlockLanguage.SQL:
+                upstream_dbt_blocks = block.upstream_dbt_blocks() or []
+                upstream_dbt_blocks_by_uuid = {
+                    block.uuid: block
+                    for block in upstream_dbt_blocks
+                }
+                pipeline.blocks_by_uuid.update(upstream_dbt_blocks_by_uuid)
+                pipeline.validate('A cycle was formed while adding a block')
+                pipeline.save()
+            else:
+                pipeline.add_block(
+                    block,
+                    downstream_block_uuids=downstream_block_uuids,
+                    upstream_block_uuids=upstream_block_uuids,
+                    priority=priority,
+                    widget=widget,
+                )
 
     @classmethod
     def create(
@@ -2931,6 +2943,9 @@ class Block(
 
         if self.replicated_block:
             data['replicated_block'] = self.replicated_block
+
+        if self.groups:
+            data['groups'] = self.groups
 
         return data
 

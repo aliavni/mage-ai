@@ -52,6 +52,7 @@ const SHARED_DATE_FONT_PROPS = {
 
 function RetryButton({
   cancelingRunId,
+  disableClick,
   disabled,
   isLoadingCancelPipeline,
   onCancel,
@@ -63,6 +64,7 @@ function RetryButton({
   showConfirmationId,
 }: {
   cancelingRunId: number;
+  disableClick?: boolean;
   disabled?: boolean;
   isLoadingCancelPipeline: boolean;
   onCancel: (run: PipelineRunType) => void;
@@ -73,7 +75,8 @@ function RetryButton({
   setShowConfirmationId: (showConfirmationId: number) => void;
   showConfirmationId: number;
 }) {
-  const isViewerRole = isViewer();
+  const router = useRouter();
+  const isViewerRole = isViewer(router?.basePath);
   const {
     id: pipelineRunId,
     pipeline_schedule_id: pipelineScheduleId,
@@ -171,9 +174,14 @@ function RetryButton({
         default={RunStatus.INITIAL === status}
         disabled={disabled || isViewerRole}
         loading={!pipelineRun}
+        notClickable={disableClick}
         onClick={e => {
           // Stop table row from being highlighted as well
           e.stopPropagation();
+
+          if (disableClick) {
+            return;
+          }
           setShowConfirmationId(pipelineRunId);
         }}
         padding="6px"
@@ -258,6 +266,7 @@ type PipelineRunsTableProps = {
   setSelectedRun?: (selectedRun: any) => void;
   setSelectedRuns?: (selectedRuns: any) => void;
   setErrors?: (errors: ErrorsType) => void;
+  workspaceFormatting?: boolean;
 };
 
 function PipelineRunsTable({
@@ -278,9 +287,10 @@ function PipelineRunsTable({
   setSelectedRun,
   setSelectedRuns,
   setErrors,
+  workspaceFormatting = false,
 }: PipelineRunsTableProps) {
   const router = useRouter();
-  const isViewerRole = isViewer();
+  const isViewerRole = isViewer(router?.basePath);
   const displayLocalTimezone = shouldDisplayLocalTimezone();
   const deleteButtonRefs = useRef({});
   const [cancelingRunId, setCancelingRunId] = useState<number>(null);
@@ -402,6 +412,13 @@ function PipelineRunsTable({
       uuid: 'Block runs',
     },
   ];
+
+  if (workspaceFormatting) {
+    columnFlex.push(1);
+    columns.push({
+      uuid: 'Repo path',
+    });
+  }
 
   if (!hidePipelineColumn) {
     columnFlex.push(1);
@@ -531,6 +548,7 @@ function PipelineRunsTable({
               pipeline_schedule_name: pipelineScheduleName,
               pipeline_tags: pipelineTags,
               pipeline_uuid: pipelineUUID,
+              repo_path: repoPath,
               started_at: startedAt,
               status,
             } = pipelineRun;
@@ -563,6 +581,7 @@ function PipelineRunsTable({
                 </Spacing>,
                 <Button
                   default
+                  disabled={disabled || workspaceFormatting}
                   iconOnly
                   key="row_logs"
                   noBackground
@@ -583,11 +602,26 @@ function PipelineRunsTable({
                   key="row_block_runs"
                   passHref
                 >
-                  <Link block bold centerAlign muted title={blockRunCountTooltipMessage}>
+                  <Link
+                    block
+                    bold
+                    centerAlign
+                    disabled={disabled || workspaceFormatting}
+                    muted
+                    title={blockRunCountTooltipMessage}
+                  >
                     {`${completedBlockRunsCount} / ${blockRunsCount}`}
                   </Link>
                 </NextLink>,
               ];
+
+              if (workspaceFormatting) {
+                arr.push(
+                  <Text default key="row_repo_path" monospace>
+                    {repoPath}
+                  </Text>,
+                );
+              }
 
               if (!hidePipelineColumn) {
                 arr.push(
@@ -664,6 +698,7 @@ function PipelineRunsTable({
               arr = [
                 <RetryButton
                   cancelingRunId={cancelingRunId}
+                  disableClick={workspaceFormatting}
                   disabled={disabled}
                   isLoadingCancelPipeline={isLoadingCancelPipeline}
                   key="row_retry_button"
@@ -677,7 +712,7 @@ function PipelineRunsTable({
                 />,
                 <Button
                   default
-                  disabled={disabled}
+                  disabled={disabled || workspaceFormatting}
                   iconOnly
                   key="row_logs"
                   noBackground
@@ -702,7 +737,7 @@ function PipelineRunsTable({
                     block
                     bold
                     centerAlign
-                    disabled={disabled}
+                    disabled={disabled || workspaceFormatting}
                     sky
                     title={blockRunCountTooltipMessage}
                   >
@@ -710,6 +745,14 @@ function PipelineRunsTable({
                   </Link>
                 </NextLink>,
               ];
+
+              if (workspaceFormatting) {
+                arr.push(
+                  <Text default key="row_repo_path" monospace>
+                    {repoPath}
+                  </Text>,
+                );
+              }
 
               if (!hidePipelineColumn) {
                 arr.push(
@@ -727,7 +770,11 @@ function PipelineRunsTable({
                     key="row_trigger"
                     passHref
                   >
-                    <Link bold sky>
+                    <Link
+                      bold
+                      disabled={workspaceFormatting}
+                      sky
+                    >
                       {pipelineScheduleName}
                     </Link>
                   </NextLink>,

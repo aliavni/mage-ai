@@ -201,13 +201,32 @@ class PipelineSchedule(PipelineScheduleProjectPlatformMixin, BaseModel):
 
     @property
     def pipeline_runs_count(self) -> int:
-        if project_platform_activated():
-            return self.pipeline_runs_count_project_platform
-
         return (
             PipelineRun.select(func.count(PipelineRun.id))
             .filter(
                 PipelineRun.pipeline_schedule_id == self.id,
+            )
+            .scalar()
+        )
+
+    @property
+    def initial_pipeline_runs(self) -> List:
+        return (
+            PipelineRun.query
+            .filter(
+                PipelineRun.pipeline_schedule_id == self.id,
+                PipelineRun.status == PipelineRun.PipelineRunStatus.INITIAL,
+            )
+            .all()
+        )
+
+    @property
+    def running_pipeline_run_count(self) -> int:
+        return (
+            PipelineRun.select(func.count(PipelineRun.id))
+            .filter(
+                PipelineRun.pipeline_schedule_id == self.id,
+                PipelineRun.status == PipelineRun.PipelineRunStatus.RUNNING,
             )
             .scalar()
         )
@@ -834,6 +853,10 @@ class PipelineRun(PipelineRunProjectPlatformMixin, BaseModel):
     def pipeline_type(self) -> PipelineType:
         pipeline = self.pipeline
         return pipeline.type if pipeline is not None else None
+
+    @property
+    def repo_path(self) -> str:
+        return self.pipeline_schedule.repo_path
 
     @property
     def logs(self) -> List[Dict]:
